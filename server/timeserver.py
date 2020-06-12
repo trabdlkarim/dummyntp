@@ -12,9 +12,9 @@
 
 import os
 import sys
-import threading
 import time
-import datetime
+from datetime import datetime
+from datetime import timezone
 import argparse as arg
 from socketserver import TCPServer
 from socketserver import StreamRequestHandler
@@ -30,10 +30,13 @@ END = '\033[0m'
 class TimeServerRequestHandler(StreamRequestHandler):
     def handle(self):
         self.data = self.rfile.readline().strip()
-        print(datetime.datetime.now().isoformat(timespec='seconds')+": ",end="")
+        print("Universal time: "+datetime.now(timezone.utc).isoformat(timespec='seconds'))
         print("time request from {} ".format(self.client_address))
-        print(self.data)
-        self.wfile.write(self.data.upper())
+        self.utc_timestamp = datetime.now(timezone.utc).timestamp()  # elapsed time since epoch in seconds
+        self.tz_timestamp = int(TIMEZONE[3:]) * 3600  # timezone in seconds
+        self.timedelta = self.utc_timestamp + self.tz_timestamp
+        self.wfile.write(str((self.timedelta*1000,TIMEZONE)).encode())  # send time reponse in milliseconds
+
         print("Waiting for request.")
 
 class NTPServer:
@@ -49,7 +52,9 @@ class NTPServer:
         print("Binding to address {}:{}...".format(HOST,PORT))
         time.sleep(2)
         print("Server is running on {}:{}".format(HOST,PORT))
-        print("Active: service "+GREEN+"running"+END+" since %s" % datetime.datetime.now().isoformat(timespec='seconds') )
+        print("Active: service "+GREEN+"running"+END+" since %s" % datetime.now(timezone.utc).isoformat(timespec='seconds') )
+        print("Server Timezone: "+TIMEZONE)
+        print("Universal time: "+datetime.now(timezone.utc).isoformat(timespec='seconds'))
         print("Waiting for request.")
         with self.server:
             self.server.serve_forever()
@@ -59,6 +64,12 @@ class NTPServer:
         with open("pid.txt",'r') as pfile:
             pid = pfile.readline()
             pid = int(str(pid).strip())
+
+        try:
+            os.kill(pid,2)
+            print("Server has been stopped.")
+        except ProcessLookupError:
+            print("Can't stop server, because it not running.")
 
     @staticmethod
     def parse_args(argv):
@@ -76,7 +87,7 @@ class NTPServer:
         args =  parser.parse_args(argv)
         args = vars(args)
         PORT = args['port']
-        TIMEZONE = args['timezone']
+        TIMEZONE = args['timezone'].upper()
         return parser, args
 
 

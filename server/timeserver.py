@@ -30,20 +30,27 @@ END = '\033[0m'
 class TimeServerRequestHandler(StreamRequestHandler):
     def handle(self):
         self.data = self.rfile.readline().strip()
-        print("{} wrote:".format(self.client_address[0]))
+        print(datetime.datetime.now().isoformat(timespec='seconds')+": ",end="")
+        print("time request from {} ".format(self.client_address))
         print(self.data)
         self.wfile.write(self.data.upper())
-
-
+        print("Waiting for request.")
 
 class NTPServer:
     def __init__(self,server_address, HandlerClass):
+        self.server_address = server_address
         self.server = TCPServer(server_address, HandlerClass)
 
     def start_server(self):
         self.server_pid = os.getpid()
         with open("pid.txt","w") as pfile:
             pfile.write(str(self.server_pid)+"\n")
+        print("Server starting...")
+        print("Binding to address {}:{}...".format(HOST,PORT))
+        time.sleep(2)
+        print("Server is running on {}:{}".format(HOST,PORT))
+        print("Active: service "+GREEN+"running"+END+" since %s" % datetime.datetime.now().isoformat(timespec='seconds') )
+        print("Waiting for request.")
         with self.server:
             self.server.serve_forever()
 
@@ -57,12 +64,11 @@ class NTPServer:
     def parse_args(argv):
         parser = arg.ArgumentParser(prog="timeserver",description="description: simple NTP server using TCP protocol")
         group = parser.add_mutually_exclusive_group()
-        global PORT
         global TIMEZONE
+        global PORT
         parser.add_argument("-p","--port",type=int, default=PORT,
                             help="define the server's listening port")
-        parser.add_argument("-t","--timezone",type=int, default=TIMEZONE,
-                            help="define the server's timezone")
+        parser.add_argument("-t","--timezone", default=TIMEZONE,help="define the server's timezone")
         group.add_argument("--start", action='store_true', help="start the ntp server")
         group.add_argument("--stop",action="store_true", help="stop the ntp server  ")
 
@@ -79,9 +85,10 @@ def main(argv):
     parser, args = NTPServer.parse_args(argv)
     if args["start"] == True:
         try:
-           server = NTPServer((HOST,PORT), TimeServerRequestHandler)
+           server = NTPServer((HOST,args['port']), TimeServerRequestHandler)
            server.start_server()
         except (KeyboardInterrupt,SystemExit):
+
             print("\nServer stopped.")
 
     elif args["stop"] == True:
